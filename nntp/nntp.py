@@ -7,7 +7,7 @@ class MyNntp:
     def __init__(self, server, port, use_ssl):
         """Constructor
 
-        Pass in the server, port, and ssl value to connect.
+        Pass in the server, port, and ssl usage value for connect.
         """
 
         # just store the values for now
@@ -23,17 +23,18 @@ class MyNntp:
         self.text = None
 
     def parse(self):
-        """Parse response from server.
+        """Parse response to command from server.
 
-        Pass in a single line from the server and it will be broken into its
-        component parts (if it is formatted properly). Both the three digit server
-        code as well as the ASCII string from the response will be returned to the
-        caller.
+        Break the first line from the data buffer into its component parts (if
+        it is formatted properly) and retain the three digit server code as well
+        as the ASCII string.
 
-        If the format is parsed properly the server code and the ASCII string will
-        be returned.
+        Server code and ASCII string will be set in self.code and self.text if
+        it is successfully parsed. The first line will be removed from the data
+        buffer as well.
 
-        If the format is not recognized None will be returned.
+        If the format is not recognized None will be set it both variables. No
+        data will be removed from the buffer.
         """
 
         # make sure we clear any old response stored
@@ -62,8 +63,7 @@ class MyNntp:
     def fetch(self):
         """Get server response.
 
-        Get the response to a command send to the NNTP server and return it for use
-        by the calling function.
+        Get the response to a command sent to the NNTP server and parse it.
         """
 
         # receive data from server
@@ -99,8 +99,8 @@ class MyNntp:
     def send(self, command):
         """Send a command to the server and get the response.
 
-        Send the command out to the server and pass the response back to the calling
-        function.
+        Send the command out the connected socket to the server and parse the
+        response.
         """
 
         # send the command to the server
