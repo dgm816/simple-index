@@ -104,7 +104,7 @@ class MyNntp:
         """
 
         # send the command to the server
-        self.s.sendall(command)
+        self.s.sendall(command + "\r\n")
 
         # get the response from the server
         self.fetch()
@@ -119,14 +119,14 @@ class MyNntp:
         """
 
         # send the username to the server
-        self.send("AUTHINFO USER " + username + "\r\n")
+        self.send("AUTHINFO USER " + username)
 
         # get code 381 if a password is required
         if self.code != '381':
             return False
 
         # send the password to the server
-        self.send("AUTHINFO PASS " + password + "\r\n")
+        self.send("AUTHINFO PASS " + password)
 
         # get code 281 if successfully logged in
         if self.code != '281':
@@ -142,7 +142,7 @@ class MyNntp:
         """
 
         # send the command to the server
-        self.send("LIST ACTIVE\r\n")
+        self.send("LIST ACTIVE")
 
         # check for 215 for multi line response
         if self.code != '215':
@@ -198,7 +198,7 @@ class MyNntp:
         """
 
         # send the post command to the server
-        self.send("POST\r\n")
+        self.send("POST")
 
         # get code 340 if we're ok to post
         if self.code != '340':
@@ -211,7 +211,7 @@ class MyNntp:
         self.s.sendall(article)
 
         # send our end of transmission character
-        self.send(".\r\n")
+        self.send(".")
 
         # get code 240 if the server accepted our post
         if self.code != '240':
