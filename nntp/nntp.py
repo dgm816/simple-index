@@ -36,11 +36,16 @@ class MyNntp:
         If the format is not recognized None will be returned.
         """
 
-        # break apart the response code and (optionally) the rest of the line
+        # make sure we clear any old response stored
+        self.code = None
+        self.text = None
+
+        # grab the first line from our relieved data (without lin ending)
         index = self.data.find("\r\n")
         line = self.data[:index]
 
-        match = re.match(r"(\d{3})(?: (.+))?", line)
+        # break apart the response code and (optionally) the rest of the line
+        match = re.match(r"(\d{3})(?: +(.+))?", line)
 
         # check for match
         if match:
@@ -48,7 +53,7 @@ class MyNntp:
             self.code = match.group(1)
             self.text = match.group(2)
 
-            # update our data we've received
+            # remove our processed line (including line endings)
             self.data = self.data[index+2:]
 
         # we are done
@@ -60,10 +65,6 @@ class MyNntp:
         Get the response to a command send to the NNTP server and return it for use
         by the calling function.
         """
-
-        # make sure we clear any old response stored
-        self.code = None
-        self.text = None
 
         # receive data from server
         self.data = self.s.recv(1024)
