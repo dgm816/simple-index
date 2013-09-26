@@ -1,6 +1,5 @@
 import re
 import socket
-import sqlite3
 import ssl
 
 
@@ -135,7 +134,7 @@ class MyNntp:
         # all went well, return true
         return True
 
-    def listactive(self):
+    def listactive(self, processor=None):
         """List Active
 
         List the active newsgroups available on the server.
@@ -148,40 +147,49 @@ class MyNntp:
         if self.code != '215':
             return False
 
-        conn = sqlite3.connect('data.db')
-        c = conn.cursor()
-
+        # regex pattern to recognize results
         pattern = re.compile(r"(\S+) +(\S+) +(\S+) +(\S+)")
 
-        done = False
+        # this is our end of transmission flag
+        eot = False
 
-        while not done:
-            # process the results of the command
+        # are we processing results?
+        if processor is None:
+            results = []
+
+        # keep looping until our transmission is finished
+        while not eot:
+            # process the data in our buffer
             for line in self.data.splitlines(True):
                 # check for a full line
                 if line.endswith("\r\n"):
                     #  check for end of multi line response
                     if line == ".\r\n":
-                        done = True
+                        eot = True
                     else:
                         # apply pattern to line
                         match = pattern.match(line)
                         if match:
-                            c.execute("insert into 'newsgroups' ('name', 'high_water', 'low_water', 'status') values (?, ?, ?, ?)", (buffer(match.group(1)), match.group(2), match.group(3), match.group(4)))
+                            if processor is None:
+                                results.append([match.group(1), match.group(2), match.group(3), match.group(4)])
+                            else:
+                                processor(match.group(1), match.group(2), match.group(3), match.group(4))
+                        else:
+                            print("unexpected line in results: %s", line)
 
-                    # remove lines
+                    # remove line
                     line, self.data = self.data.split("\r\n", 1)
 
-            if not done:
-                # receive data from server
+            # if we have not finished...
+            if not eot:
+                # receive more data from server
                 self.data += self.s.recv(1024)
 
-
-        conn.commit()
-        conn.close()
-
         # all went well, return true
-        return True
+        if processor is None:
+            return results
+        else:
+            return True
 
     def post(self, fromheader, subjectheader, newsgroupsheader, article):
         """Post a binary article to a newsgroup.
