@@ -9,111 +9,138 @@ import os
 
 class yEnc:
 
-    def __init__(self):
-        self.encoded = ''
-        self.decoded = ''
+    def __init__(self, data=None):
+        # holds the encoded/decoded data
+        self.encoded = None
+        self.decoded = None
 
-        self.crc = 0
-        self.size = 0
-        self.line = 0
-        self.name = ''
+        # configuration variables.
+        self.linelength = None
 
-        self.multipart = False
-        self.part = 0
-        self.partsize = 0
-        self.partbegin = 0
-        self.partend = 0
-        self.pcrc = 0
-        self.total = 0
+        # yEnc headers/footers
+        self.header = None
+        self.partheader = None
+        self.footer = None
+
+        # flag for determining single/multi-part encoding
+        self.multipart = None
+
+        # private variables for class use
+        self.temp = None
+        self.escaped = False
+
+        # single part yEnc attributes
+        self.crc = None
+        self.size = None
+        self.line = None
+        self.name = None
+
+        # multi-part yEnc attributes
+        self.part = None
+        self.partsize = None
+        self.partbegin = None
+        self.partend = None
+        self.pcrc = None
+        self.total = None
+
+        # was data passed?
+        if data is not None:
+            # TODO determine if we have encoded data
+            pass
 
     def yencode(self, char, first=False, last=False):
         """Encode one character using the yEnc algorithm.
 
-        Return the yEnc encoded value and handle the special characters by appending
-        the escape character and encoding alternately. One or two characters will be
-        returned each time this function is called.
+        A character, and two flags are passed to this function. The character
+        is the value to be encoded (a single ASCII character) while the flags
+        represent the position of the character (first position of the line or
+        last position of the line).
 
-        The 'first' argument has been designed so we encode the characters properly
-        if it is the first character of a new line. This will encode period/space/
-        tab characters.  Also, passing the 'first' flag inherently will enable the
-        'last' flag (to pick up space/tab characters).
+        Additional checks will be preformed if the character is in the first or
+        last position of the line.
 
-        The 'last' argument has been designed to encode the space/tab characters
-        properly when the last character of the line is being encoded.
+        Both space and tab characters will be considered critical characters if
+        they are the first or last character on a line. This is to ensure that
+        a yEnc decoder does not discard the whitespace on either end of the
+        encoded line.
+
+        Additionally, if the first character of a line is a period, this yEnc
+        implementation *WILL* consider it a critical character and encode it to
+        ensure conformance to the NNTP RFC when writing to a raw socket. This
+        can be removed if it is undesired behavior.
         """
 
-        # check if special rules are being used
-        if first:
-            last = True
-
-        # holds our output
-        output = ''
-
-        # encode the string with yEnc
+        # encode the character
         e = (ord(char) + 42) % 256
 
-        # check for special characters
+        # check for critical characters
         if e == 0x00:
             e = (e + 64) % 256
-            output = '='
+            self.temp = '='
         elif e == 0x0a:
             e = (e + 64) % 256
-            output = '='
+            self.temp = '='
         elif e == 0x0d:
             e = (e + 64) % 256
-            output = '='
+            self.temp = '='
         elif e == 0x3d:
             e = (e + 64) % 256
-            output = '='
+            self.temp = '='
 
-        # the encoded 0x09 (tab char) was removed in version 1.2 of the yenc spec;
-        # however, we still should force to encode this character if it is the
-        # first or last character of a line
-        elif e == 0x09 and last == True:
+        # the encoded 0x09 (tab char) was removed in version 1.2 of the yEnc
+        # spec; however, we still should still consider this a critical
+        # character if it is the first or last character of a line
+        elif (first or last) and e == 0x09:
             e = (e + 64) % 256
-            output = '='
-        # the encoded 0x20 (space char) should be used it it is the first or the
-        # last character of a line
-        elif e == 0x20 and last == True:
+            self.temp = '='
+        # the encoded 0x20 (space char) should be considered a critical
+        # character if it is the first or last character of a line
+        elif (first or last) and e == 0x20:
             e = (e + 64) % 256
-            output = '='
-        # the encoded 0x2e (period) only needs encoding on the first line to adhere
-        # to the nntp rfc
-        elif e == 0x2e and first == True:
+            self.temp = '='
+        # the encoded 0x2e (period) only needs encoding on the first line to
+        # adhere to the nntp rfc
+        elif first and e == 0x2e:
             e = (e + 64) % 256
-            output = '='
+            self.temp = '='
 
         # append the encoded value to the output string
-        output += chr(e)
-
-        # return the value
-        return output
+        self.temp += chr(e)
 
     def ydecode(self, char):
+        """Decode one character using the yEnc algorithm.
 
-        # holds our output
-        output = ''
+
+        """
 
         # get ascii value of the character
         d = ord(char)
 
         # do we have an escape character?
         if d == 0x3d:
-            escaped = True
+            # set our escaped flag; clear our temp character
+            self.escaped = True
+            self.temp = None
         else:
-            d = ((256 + d) - 42) % 256
-            output = chr(d)
+            # see if we have seen our escaped flag
+            if self.escaped:
+                # undo the critical character encoding; clear flag
+                d = (d - 42 - 64 + 256) % 256
+                self.escaped = False
+            else:
+                # undo the normal encoding
+                d = (d - 42 + 256) % 256
 
-        # return our output
-        return output
+            # store temp character
+            self.temp = chr(d)
 
-    def yencodedata(self, data, chars):
+    def yencodedata(self, data):
         """Encode an entire data chunk obeying the formatting rules.
 
-        Using the yEncode function to do the actual work of encoding, yEncodeData
-        will pass along things like first/last character flags which will cause
-        yEncode to use alternate encoding (encode spaces/tabs at the begining/end
-        and encode periods at the start of a line).
+        This function will use the yencode function to do the actual work of
+        encoding. It will pass along the proper flags for first/last character
+        designation of each encoded character. This will allow yencode to use
+        the alternate encoding rules if required.
         """
 
         # holds our output
@@ -123,18 +150,25 @@ class yEnc:
 
         # loop over data passed
         for char in data:
-            # encode each character
+
+            # check for first character of line
             if len(line) == 0:
-                line += self.yencode(char, first=True)
-            elif len(line) == chars:
-                line += self.yencode(char, last=True)
+                self.yencode(char, first=True)
+            # check for last character of line
+            elif len(line) == self.linelength:
+                self.yencode(char, last=True)
+            # check for last character of data
             elif len(data) == count:
-                line += self.yencode(char, last=True)
+                self.yencode(char, last=True)
+            # otherwise, encode normally
             else:
-                line += self.yencode(char)
+                self.yencode(char)
+
+            # store the encoded character(s) on our line
+            line += self.temp
 
             # check if we have a full line
-            if len(line) >= chars:
+            if len(line) >= self.linelength:
                 # save to output
                 output += line + "\r\n"
                 # clear the line
@@ -147,10 +181,10 @@ class yEnc:
         # return our encoded and formatted data
         return output
 
-    def yencodesingle(self, filename, chars):
+    def yencodesingle(self, filename):
         """Encode a single (non-multipart) yEnc message.
 
-        Useing yEncodeData we will encode the data passed to us into a yEnc message
+        Using yEncodeData we will encode the data passed to us into a yEnc message
         with header/footer attached.
 
         This function does not support multi-part yEnc messages.
@@ -169,10 +203,10 @@ class yEnc:
         crc = zlib.crc32(data)
 
         # attach the header
-        output = '=ybegin line=' + str(chars) + ' size=' + str(size) + ' name=' + filename + '\r\n'
+        output = '=ybegin line=' + str(self.chars) + ' size=' + str(size) + ' name=' + filename + '\r\n'
 
         # append yEnc data
-        output += self.yencodeData(data, chars)
+        output += self.yencodeData(data)
 
         # attach the footer
         output += '=yend size=' + str(size) + ' crc32=' + "%08x"%(crc & 0xFFFFFFFF) + '\r\n'
@@ -180,10 +214,10 @@ class yEnc:
         # return our encoded and formatted data
         return output
 
-    def yencodemultiple(self, filename, partSize, chars):
-        """Encode a multipart yEnc message.
+    def yencodemultiple(self, filename, partSize):
+        """Encode a multi-part yEnc message.
 
-        Useing yEncodeData we will encode the data passed to us into a number of
+        Using yEncodeData we will encode the data passed to us into a number of
         yEnc messages with headers/footers attached.
 
         This function only supports multi-part yEnc messages.
@@ -225,13 +259,13 @@ class yEnc:
             pcrc = zlib.crc32(partData)
 
             # attach the header
-            partOutput = '=ybegin part=' + str(i+1) + ' total=' + totalParts + ' line=' + str(chars) + ' size=' + str(size) + ' name=' + filename + '\r\n'
+            partOutput = '=ybegin part=' + str(i+1) + ' total=' + totalParts + ' line=' + str(self.chars) + ' size=' + str(size) + ' name=' + filename + '\r\n'
 
             # attach the part header
             partOutput += '=ypart begin=' + str(startOffset+1) + ' end=' + str(stopOffset) + '\r\n'
 
             # append yEnc data
-            partOutput += self.yencodeData(partData, chars)
+            partOutput += self.yencodeData(partData)
 
             # attach the footer
             partOutput += '=yend size=' + str(partSize) + ' part=' + str(i+1) + ' pcrc=' + "%08x"%(pcrc & 0xFFFFFFFF) + ' crc32=' + "%08x"%(crc & 0xFFFFFFFF) + '\r\n'
