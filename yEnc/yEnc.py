@@ -10,7 +10,21 @@ import os
 class yEnc:
 
     def __init__(self):
-        pass
+        self.encoded = ''
+        self.decoded = ''
+
+        self.crc = 0
+        self.size = 0
+        self.line = 0
+        self.name = ''
+
+        self.multipart = False
+        self.part = 0
+        self.partsize = 0
+        self.partbegin = 0
+        self.partend = 0
+        self.pcrc = 0
+        self.total = 0
 
     def yencode(self, char, first=False, last=False):
         """Encode one character using the yEnc algorithm.
@@ -42,16 +56,20 @@ class yEnc:
         if e == 0x00:
             e = (e + 64) % 256
             output = '='
-        # the encoded 0x09 (tab char) was removed in version 1.2 of the yenc spec;
-        # however, we still should force to encode this character if it is the
-        # first or last character of a line
-        elif e == 0x09 and last == True:
-            e = (e + 64) % 256
-            output = '='
         elif e == 0x0a:
             e = (e + 64) % 256
             output = '='
         elif e == 0x0d:
+            e = (e + 64) % 256
+            output = '='
+        elif e == 0x3d:
+            e = (e + 64) % 256
+            output = '='
+
+        # the encoded 0x09 (tab char) was removed in version 1.2 of the yenc spec;
+        # however, we still should force to encode this character if it is the
+        # first or last character of a line
+        elif e == 0x09 and last == True:
             e = (e + 64) % 256
             output = '='
         # the encoded 0x20 (space char) should be used it it is the first or the
@@ -64,14 +82,29 @@ class yEnc:
         elif e == 0x2e and first == True:
             e = (e + 64) % 256
             output = '='
-        elif e == 0x3d:
-            e = (e + 64) % 256
-            output = '='
 
         # append the encoded value to the output string
         output += chr(e)
 
         # return the value
+        return output
+
+    def ydecode(self, char):
+
+        # holds our output
+        output = ''
+
+        # get ascii value of the character
+        d = ord(char)
+
+        # do we have an escape character?
+        if d == 0x3d:
+            escaped = True
+        else:
+            d = ((256 + d) - 42) % 256
+            output = chr(d)
+
+        # return our output
         return output
 
     def yencodedata(self, data, chars):
@@ -192,7 +225,7 @@ class yEnc:
             pcrc = zlib.crc32(partData)
 
             # attach the header
-            partOutput = '=ybegin part=' + str(i+1) + ' line=' + str(chars) + ' size=' + str(size) + ' name=' + filename + '\r\n'
+            partOutput = '=ybegin part=' + str(i+1) + ' total=' + totalParts + ' line=' + str(chars) + ' size=' + str(size) + ' name=' + filename + '\r\n'
 
             # attach the part header
             partOutput += '=ypart begin=' + str(startOffset+1) + ' end=' + str(stopOffset) + '\r\n'
@@ -201,7 +234,6 @@ class yEnc:
             partOutput += self.yencodeData(partData, chars)
 
             # attach the footer
-            # part=10 pcrc32=12a45c78
             partOutput += '=yend size=' + str(partSize) + ' part=' + str(i+1) + ' pcrc=' + "%08x"%(pcrc & 0xFFFFFFFF) + ' crc32=' + "%08x"%(crc & 0xFFFFFFFF) + '\r\n'
 
             # append to our output list
