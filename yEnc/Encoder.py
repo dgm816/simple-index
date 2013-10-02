@@ -4,14 +4,19 @@ This is a library for encoding using the yEnc standard.
 """
 
 import zlib
-import os
 
+
+class yEncException(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
 
 class Encoder:
 
-    def __init__(self, data=None, line_length=128, part_size=10000):
+    def __init__(self, data=None, filename=None, line_length=128, part_size=10000):
         # holds the data to encode
-        self.data = None
+        self.data = data
 
         # holds header/footer and the encoded data
         self.yenc_header = None
@@ -28,7 +33,7 @@ class Encoder:
         # single part yEnc attributes
         self.crc = None
         self.size = None
-        self.name = None
+        self.name = filename
 
         # was data passed?
         if data is not None:
@@ -98,7 +103,7 @@ class Encoder:
 
         return output
 
-    def yencodedata(self, data=None):
+    def yencodedata(self, chunk):
         """Encode an entire data chunk obeying the formatting rules.
 
         This function will use the yencode function to do the actual work of
@@ -114,7 +119,7 @@ class Encoder:
         count = 1
 
         # loop over data passed
-        for char in self.data:
+        for char in chunk:
 
             # check for first character of line
             if len(line) == 0:
@@ -123,7 +128,7 @@ class Encoder:
             elif len(line) == self.line_length:
                 character = self.yencode(char, last=True)
             # check for last character of data
-            elif len(data) == count:
+            elif len(chunk) == count:
                 character = self.yencode(char, last=True)
             # otherwise, encode normally
             else:
@@ -147,7 +152,7 @@ class Encoder:
         # return our encoded and formatted data
         return output
 
-    def yencodesingle(self, filename):
+    def yencodesingle(self, data=None, filename=None):
         """Encode a single (non-multipart) yEnc message.
 
         Using yEncodeData we will encode the data passed to us into a yEnc message
@@ -162,17 +167,11 @@ class Encoder:
         self.yenc_data = []
         self.multipart = False
 
-        # set the name of the file
-        self.name = filename
+        # set any passed parameters
+        self.setparams(data, filename)
 
-        # get the size of the file.
-        self.size = os.path.getsize(filename)
-
-        # read in the file
-        self.data = file(filename, 'rb').read()
-
-        # store crc of data before encoding
-        self.crc = zlib.crc32(self.data)
+        # ensure we have good object data
+        self.checkparams()
 
         # generate the header
         self.yenc_header = '=ybegin line=' + str(self.line_length) + ' size=' + str(self.size) + ' name=' + filename
@@ -183,7 +182,7 @@ class Encoder:
         # encode data
         self.yenc_data = self.yencodedata(self.data)
 
-    def yencodemultiple(self, filename):
+    def yencodemultiple(self, data=None, filename=None):
         """Encode a multi-part yEnc message.
 
         Using yEncodeData we will encode the data passed to us into a number of
@@ -198,22 +197,16 @@ class Encoder:
         self.yenc_data = []
         self.multipart = True
 
-        # set the name of the file
-        self.name = filename
+        # set any passed parameters
+        self.setparams(data, filename)
 
-        # get the size of the file.
-        self.size = os.path.getsize(filename)
-
-        # read in the file
-        self.data = file(filename, 'rb').read()
+        # ensure we have good object data
+        self.checkparams()
 
         # determine number of parts
         parts_total = self.size / self.part_size
         if (self.size % self.part_size) != 0:
             parts_total += 1
-
-        # store crc of data before encoding
-        self.crc = zlib.crc32(self.data)
 
         # loop for each part
         for i in range(parts_total):
@@ -250,3 +243,34 @@ class Encoder:
 
             # store to our yenc_data
             self.yenc_data.append(part)
+
+    def checkparams(self):
+        """Check the object parameters
+
+        Before operating on the object, ensure we have the minimum required
+        information to work with the object.
+        """
+
+        # make sure we have all the data we need
+        if self.data is None:
+            raise yEncException('Data has not been set.')
+        if self.name is None:
+            raise yEncException('Filename has not been set.')
+
+    def setparams(self, data, filename):
+        """Set the object parameters
+
+        Set the object parameters before we use them.  This has been
+        made into a function to centralize the parameter assignment
+        in an effort to 'DRY' code.
+        """
+
+        # set the data
+        if data is not None:
+            self.data = data
+            self.size = len(data)
+            self.crc = zlib.crc32(self.data)
+
+        # set the name of the file
+        if filename is not None:
+            self.name = filename
