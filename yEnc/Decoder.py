@@ -7,22 +7,20 @@ import zlib
 import os
 
 
-class yEnc:
+class Decoder:
 
     def __init__(self, data=None):
         # holds the data to decode
         self.data = None
 
-        # holds the decoded data
-        self.decoded = None
+        # holds header/footer and the encoded data
+        self.yenc_header = None
+        self.yenc_footer = None
+        self.yenc_data = None
 
         # configuration variables.
-        self.linelength = None
-
-        # yEnc headers/footers
-        self.header = None
-        self.partheader = None
-        self.footer = None
+        self.line_length = line_length
+        self.part_size = part_size
 
         # flag for determining single/multi-part encoding
         self.multipart = None
@@ -30,23 +28,14 @@ class yEnc:
         # single part yEnc attributes
         self.crc = None
         self.size = None
-        self.line = None
         self.name = None
-
-        # multi-part yEnc attributes
-        self.part = None
-        self.partsize = None
-        self.partbegin = None
-        self.partend = None
-        self.pcrc = None
-        self.total = None
 
         # was data passed?
         if data is not None:
             # TODO determine if we have encoded data
             pass
 
-    def decode(self, char):
+    def ydecode(self, char):
         """Decode one character using the yEnc algorithm.
 
 

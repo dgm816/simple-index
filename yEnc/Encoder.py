@@ -7,22 +7,20 @@ import zlib
 import os
 
 
-class yEnc:
+class Encoder:
 
-    def __init__(self, data=None):
+    def __init__(self, data=None, line_length=128, part_size=10000):
         # holds the data to encode
         self.data = None
 
-        # holds the encoded data
-        self.encoded = None
+        # holds header/footer and the encoded data
+        self.yenc_header = None
+        self.yenc_footer = None
+        self.yenc_data = None
 
         # configuration variables.
-        self.linelength = None
-
-        # yEnc headers/footers
-        self.header = None
-        self.partheader = None
-        self.footer = None
+        self.line_length = line_length
+        self.part_size = part_size
 
         # flag for determining single/multi-part encoding
         self.multipart = None
@@ -30,23 +28,14 @@ class yEnc:
         # single part yEnc attributes
         self.crc = None
         self.size = None
-        self.line = None
         self.name = None
-
-        # multi-part yEnc attributes
-        self.part = None
-        self.partsize = None
-        self.partbegin = None
-        self.partend = None
-        self.pcrc = None
-        self.total = None
 
         # was data passed?
         if data is not None:
             # TODO determine if we have encoded data
             pass
 
-    def encode(self, char, first=False, last=False):
+    def yencode(self, char, first=False, last=False):
         """Encode one character using the yEnc algorithm.
 
         A character, and two flags are passed to this function. The character
@@ -68,44 +57,48 @@ class yEnc:
         can be removed if it is undesired behavior.
         """
 
+        output = ''
+
         # encode the character
-        e = (ord(char) + 42) % 256
+        encoded = (ord(char) + 42) % 256
 
         # check for critical characters
-        if e == 0x00:
-            e = (e + 64) % 256
-            self.temp = '='
-        elif e == 0x0a:
-            e = (e + 64) % 256
-            self.temp = '='
-        elif e == 0x0d:
-            e = (e + 64) % 256
-            self.temp = '='
-        elif e == 0x3d:
-            e = (e + 64) % 256
-            self.temp = '='
+        if encoded == 0x00:
+            encoded = (encoded + 64) % 256
+            output = '='
+        elif encoded == 0x0a:
+            encoded = (encoded + 64) % 256
+            output = '='
+        elif encoded == 0x0d:
+            encoded = (encoded + 64) % 256
+            output = '='
+        elif encoded == 0x3d:
+            encoded = (encoded + 64) % 256
+            output = '='
 
         # the encoded 0x09 (tab char) was removed in version 1.2 of the yEnc
         # spec; however, we still should still consider this a critical
         # character if it is the first or last character of a line
-        elif (first or last) and e == 0x09:
-            e = (e + 64) % 256
-            self.temp = '='
+        elif (first or last) and encoded == 0x09:
+            encoded = (encoded + 64) % 256
+            output = '='
         # the encoded 0x20 (space char) should be considered a critical
         # character if it is the first or last character of a line
-        elif (first or last) and e == 0x20:
-            e = (e + 64) % 256
-            self.temp = '='
+        elif (first or last) and encoded == 0x20:
+            encoded = (encoded + 64) % 256
+            output = '='
         # the encoded 0x2e (period) only needs encoding on the first line to
         # adhere to the nntp rfc
-        elif first and e == 0x2e:
-            e = (e + 64) % 256
-            self.temp = '='
+        elif first and encoded == 0x2e:
+            encoded = (encoded + 64) % 256
+            output = '='
 
         # append the encoded value to the output string
-        self.temp += chr(e)
+        output += chr(encoded)
 
-    def yencodedata(self, data):
+        return output
+
+    def yencodedata(self, data=None):
         """Encode an entire data chunk obeying the formatting rules.
 
         This function will use the yencode function to do the actual work of
@@ -115,39 +108,41 @@ class yEnc:
         """
 
         # holds our output
+        character = ''
         line = ''
-        output = ''
+        output = []
         count = 1
 
         # loop over data passed
-        for char in data:
+        for char in self.data:
 
             # check for first character of line
             if len(line) == 0:
-                self.yencode(char, first=True)
+                character = self.yencode(char, first=True)
             # check for last character of line
-            elif len(line) == self.linelength:
-                self.yencode(char, last=True)
+            elif len(line) == self.line_length:
+                character = self.yencode(char, last=True)
             # check for last character of data
             elif len(data) == count:
-                self.yencode(char, last=True)
+                character = self.yencode(char, last=True)
             # otherwise, encode normally
             else:
-                self.yencode(char)
+                character = self.yencode(char)
 
             # store the encoded character(s) on our line
-            line += self.temp
+            line += character
 
             # check if we have a full line
-            if len(line) >= self.linelength:
+            if len(line) >= self.line_length:
                 # save to output
-                output += line + "\r\n"
+                output.append(line)
                 # clear the line
                 line = ''
 
         # check if we have a partial line to append
         if len(line) > 0:
-            output += line + "\r\n"
+            # save to output
+            output.append(line)
 
         # return our encoded and formatted data
         return output
@@ -161,31 +156,34 @@ class yEnc:
         This function does not support multi-part yEnc messages.
         """
 
-        # holds our output
-        output = ''
+        # clear anything previously stored
+        self.yenc_header = None
+        self.yenc_footer = None
+        self.yenc_data = []
+        self.multipart = False
+
+        # set the name of the file
+        self.name = filename
 
         # get the size of the file.
-        size = os.path.getsize(filename)
+        self.size = os.path.getsize(filename)
 
         # read in the file
-        data = file(filename, 'rb').read()
+        self.data = file(filename, 'rb').read()
 
         # store crc of data before encoding
-        crc = zlib.crc32(data)
+        self.crc = zlib.crc32(self.data)
 
-        # attach the header
-        output = '=ybegin line=' + str(self.chars) + ' size=' + str(size) + ' name=' + filename + '\r\n'
+        # generate the header
+        self.yenc_header = '=ybegin line=' + str(self.line_length) + ' size=' + str(self.size) + ' name=' + filename
 
-        # append yEnc data
-        output += self.yencodeData(data)
+        # generate the footer
+        self.yenc_footer = '=yend size=' + str(self.size) + ' crc32=' + "%08x"%(self.crc & 0xFFFFFFFF)
 
-        # attach the footer
-        output += '=yend size=' + str(size) + ' crc32=' + "%08x"%(crc & 0xFFFFFFFF) + '\r\n'
+        # encode data
+        self.yenc_data = self.yencodedata(self.data)
 
-        # return our encoded and formatted data
-        return output
-
-    def yencodemultiple(self, filename, partSize):
+    def yencodemultiple(self, filename):
         """Encode a multi-part yEnc message.
 
         Using yEncodeData we will encode the data passed to us into a number of
@@ -194,55 +192,61 @@ class yEnc:
         This function only supports multi-part yEnc messages.
         """
 
-        # holds our output
-        output = []
+        # clear anything previously stored
+        self.yenc_header = None
+        self.yenc_footer = None
+        self.yenc_data = []
+        self.multipart = True
+
+        # set the name of the file
+        self.name = filename
 
         # get the size of the file.
-        size = os.path.getsize(filename)
+        self.size = os.path.getsize(filename)
 
         # read in the file
-        data = file(filename, 'rb').read()
+        self.data = file(filename, 'rb').read()
 
         # determine number of parts
-        totalParts = size / partSize
-        if (size % partSize) != 0:
-            totalParts += 1
+        parts_total = self.size / self.part_size
+        if (self.size % self.part_size) != 0:
+            parts_total += 1
 
         # store crc of data before encoding
-        crc = zlib.crc32(data)
+        self.crc = zlib.crc32(self.data)
 
         # loop for each part
-        for i in range(totalParts):
+        for i in range(parts_total):
+
+            # holds our generated part
+            part = {'yenc_data': []}
 
             # determine our start/stop offsets
-            startOffset = i * partSize
-            stopOffset = (i+1) * partSize
-            if stopOffset > size:
-                stopOffset = size
+            start_offset = i * self.part_size
+            stop_offset = (i+1) * self.part_size
+            if stop_offset > self.size:
+                stop_offset = self.size
 
             # grab the portion of the data for this part
-            partData = data[startOffset:stopOffset]
+            part['part_data'] = self.data[start_offset:stop_offset]
 
             # determine the part size
-            partSize = len(partData)
+            part['part_length'] = len(part['part_data'])
 
             # store crc of this parts data before encoding
-            pcrc = zlib.crc32(partData)
+            part['part_crc'] = zlib.crc32(part['part_data'])
 
-            # attach the header
-            partOutput = '=ybegin part=' + str(i+1) + ' total=' + totalParts + ' line=' + str(self.chars) + ' size=' + str(size) + ' name=' + filename + '\r\n'
+            # generate the header
+            part['yenc_header'] = '=ybegin part=' + str(i+1) + ' total=' + str(parts_total) + ' line=' + str(self.line_length) + ' size=' + str(self.size) + ' name=' + filename
 
-            # attach the part header
-            partOutput += '=ypart begin=' + str(startOffset+1) + ' end=' + str(stopOffset) + '\r\n'
+            # generate the part header
+            part['yenc_part_header'] = '=ypart begin=' + str(start_offset+1) + ' end=' + str(stop_offset)
+
+            # generate the footer
+            part['yenc_footer'] = '=yend size=' + str(part['part_length']) + ' part=' + str(i+1) + ' pcrc=' + "%08x"%(part['part_crc'] & 0xFFFFFFFF) + ' crc32=' + "%08x"%(self.crc & 0xFFFFFFFF)
 
             # append yEnc data
-            partOutput += self.yencodeData(partData)
+            part['yenc_data'].append(self.yencodedata(part['part_data']))
 
-            # attach the footer
-            partOutput += '=yend size=' + str(partSize) + ' part=' + str(i+1) + ' pcrc=' + "%08x"%(pcrc & 0xFFFFFFFF) + ' crc32=' + "%08x"%(crc & 0xFFFFFFFF) + '\r\n'
-
-            # append to our output list
-            output.append(partOutput)
-
-        # return our encoded and formatted data
-        return output
+            # store to our yenc_data
+            self.yenc_data.append(part)
