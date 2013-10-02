@@ -1,6 +1,6 @@
 """yEnc
 
-This is a library for encoding/decoding the yEnc standard.
+This is a library for encoding using the yEnc standard.
 """
 
 import zlib
@@ -10,9 +10,11 @@ import os
 class yEnc:
 
     def __init__(self, data=None):
-        # holds the encoded/decoded data
+        # holds the data to encode
+        self.data = None
+
+        # holds the encoded data
         self.encoded = None
-        self.decoded = None
 
         # configuration variables.
         self.linelength = None
@@ -24,10 +26,6 @@ class yEnc:
 
         # flag for determining single/multi-part encoding
         self.multipart = None
-
-        # private variables for class use
-        self.temp = None
-        self.escaped = False
 
         # single part yEnc attributes
         self.crc = None
@@ -48,7 +46,7 @@ class yEnc:
             # TODO determine if we have encoded data
             pass
 
-    def yencode(self, char, first=False, last=False):
+    def encode(self, char, first=False, last=False):
         """Encode one character using the yEnc algorithm.
 
         A character, and two flags are passed to this function. The character
@@ -106,33 +104,6 @@ class yEnc:
 
         # append the encoded value to the output string
         self.temp += chr(e)
-
-    def ydecode(self, char):
-        """Decode one character using the yEnc algorithm.
-
-
-        """
-
-        # get ascii value of the character
-        d = ord(char)
-
-        # do we have an escape character?
-        if d == 0x3d:
-            # set our escaped flag; clear our temp character
-            self.escaped = True
-            self.temp = None
-        else:
-            # see if we have seen our escaped flag
-            if self.escaped:
-                # undo the critical character encoding; clear flag
-                d = (d - 42 - 64 + 256) % 256
-                self.escaped = False
-            else:
-                # undo the normal encoding
-                d = (d - 42 + 256) % 256
-
-            # store temp character
-            self.temp = chr(d)
 
     def yencodedata(self, data):
         """Encode an entire data chunk obeying the formatting rules.
