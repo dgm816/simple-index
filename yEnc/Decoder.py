@@ -8,7 +8,6 @@ import yEncException
 
 
 class Decoder:
-
     def __init__(self, raw):
         # holds the data to decode
         self.data = None
@@ -102,7 +101,7 @@ class Decoder:
                 continue
 
             # check for part
-            if line.startswith('=ypart ') and header_flag:
+            if line.startswith('=ypart ') and (header_flag is True):
                 header_flag = False
                 continue
 
@@ -116,6 +115,10 @@ class Decoder:
                 else:
                     raise yEncException('At least two =yend lines found')
                 continue
+
+            # remove the header flag if set
+            if header_flag is not False:
+                header_flag = False
 
             # determine if this is data
             if data_flag:
