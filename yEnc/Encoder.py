@@ -4,13 +4,7 @@ This is a library for encoding using the yEnc standard.
 """
 
 import zlib
-
-
-class yEncException(Exception):
-    def __init__(self, value):
-        self.value = value
-    def __str__(self):
-        return repr(self.value)
+import yEncException
 
 class Encoder:
 
@@ -177,7 +171,7 @@ class Encoder:
         self.yenc_header = '=ybegin line=' + str(self.line_length) + ' size=' + str(self.size) + ' name=' + filename
 
         # generate the footer
-        self.yenc_footer = '=yend size=' + str(self.size) + ' crc32=' + "%08x"%(self.crc & 0xFFFFFFFF)
+        self.yenc_footer = '=yend size=' + str(self.size) + ' crc32=' + "%08x"%(self.crc)
 
         # encode data
         self.yenc_data = self.yencodedata(self.data)
@@ -227,7 +221,7 @@ class Encoder:
             part['part_length'] = len(part['part_data'])
 
             # store crc of this parts data before encoding
-            part['part_crc'] = zlib.crc32(part['part_data'])
+            part['part_crc'] = zlib.crc32(part['part_data']) & 0xffffffff
 
             # generate the header
             part['yenc_header'] = '=ybegin part=' + str(i+1) + ' total=' + str(parts_total) + ' line=' + str(self.line_length) + ' size=' + str(self.size) + ' name=' + filename
@@ -236,7 +230,7 @@ class Encoder:
             part['yenc_part_header'] = '=ypart begin=' + str(start_offset+1) + ' end=' + str(stop_offset)
 
             # generate the footer
-            part['yenc_footer'] = '=yend size=' + str(part['part_length']) + ' part=' + str(i+1) + ' pcrc=' + "%08x"%(part['part_crc'] & 0xFFFFFFFF) + ' crc32=' + "%08x"%(self.crc & 0xFFFFFFFF)
+            part['yenc_footer'] = '=yend size=' + str(part['part_length']) + ' part=' + str(i+1) + ' pcrc=' + "%08x"%(part['part_crc'] & 0xFFFFFFFF) + ' crc32=' + "%08x"%(self.crc)
 
             # append yEnc data
             part['yenc_data'].append(self.yencodedata(part['part_data']))
@@ -269,7 +263,7 @@ class Encoder:
         if data is not None:
             self.data = data
             self.size = len(data)
-            self.crc = zlib.crc32(self.data)
+            self.crc = zlib.crc32(self.data) & 0xffffffff
 
         # set the name of the file
         if filename is not None:
