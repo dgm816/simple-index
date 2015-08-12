@@ -41,7 +41,7 @@ class MyNntp:
         self.code = None
         self.text = None
 
-        # grab the first line from our relieved data (without lin ending)
+        # grab the first line from our relieved data (without line ending)
         index = self.data.find("\r\n")
         line = self.data[:index]
 
