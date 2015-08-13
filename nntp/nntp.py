@@ -135,6 +135,168 @@ class MyNntp:
         # all went well, return true
         return True
 
+    def capabilities(self):
+        """Capabilities
+
+        List the server capabilities from the server.
+        """
+        self.send("CAPABILITIES")
+
+        # check for 101 for capabilities response
+        if self.code != '101':
+            return False
+
+        # this is our end of transmission flag
+        eot = False
+
+        # keep looping until our transmission is finished
+        while not eot:
+            # process the data in our buffer
+            for line in self.data.splitlines(True):
+                # check for a full line
+                if line.endswith("\r\n"):
+                    #  check for end of multi line response
+                    if line == ".\r\n":
+                        eot = True
+                    else:
+                        print("capabilities response: %s" % line)
+
+                    # remove line
+                    line, self.data = self.data.split("\r\n", 1)
+
+            # if we have not finished...
+            if not eot:
+                # receive more data from server
+                self.data += self.s.recv(1024)
+
+        # all went well, return true
+        return True
+
+    def quit(self):
+        """Quit
+
+        Close the server connection.
+        """
+        self.send("QUIT")
+
+        # check for 205 for quit response
+        if self.code != '205':
+            return False
+
+        # all went well, return true
+        return True
+
+    def group(self, group):
+        """Group
+
+        Select a newsgroup as the currently selected newsgroup.
+        """
+        self.send("GROUP %s" % group)
+
+        # check for 211 for group response
+        if self.code != '211':
+            return False
+
+        # regex pattern to recognize results
+        pattern = re.compile(r"(\S+) +(\S+) +(\S+) +(\S+)")
+
+        # apply pattern to line
+        match = pattern.match(self.text)
+        if match:
+            self.group_number = int(match.group(1))
+            self.group_low = int(match.group(2))
+            self.group_high = int(match.group(3))
+            self.group_group = match.group(4)
+        else:
+            self.group_number = 0
+            self.group_low = 0
+            self.group_high = 0
+            self.group_group = ""
+            return False
+
+        # all went well, return true
+        return True
+
+    def over(self, parameters=None):
+        """Overview
+
+        Get headers for the selected newsgroup.
+        """
+        self.send("XOVER")
+
+        # check for 224 for over response
+        if self.code != '224':
+            return False
+
+        # this is our end of transmission flag
+        eot = False
+
+        # keep looping until our transmission is finished
+        while not eot:
+            # process the data in our buffer
+            for line in self.data.splitlines(True):
+                # check for a full line
+                if line.endswith("\r\n"):
+                    #  check for end of multi line response
+                    if line == ".\r\n":
+                        eot = True
+                    else:
+                        # break on tabs
+                        fields = line.split("\t")
+                        for field in fields:
+                            print("%s" % field)
+
+                    # remove line
+                    line, self.data = self.data.split("\r\n", 1)
+
+            # if we have not finished...
+            if not eot:
+                # receive more data from server
+                self.data += self.s.recv(1024)
+
+        # all went well, return true
+        return True
+
+    def zver(self, parameters=None):
+        """Compressed overview
+
+        Get compressed headers for the selected newsgroup.
+        """
+        self.send("XZVER")
+
+        # check for 224 for over response
+        if self.code != '224':
+            return False
+
+        # this is our end of transmission flag
+        eot = False
+
+        yencData = ""
+
+        # keep looping until our transmission is finished
+        while not eot:
+            # process the data in our buffer
+            for line in self.data.splitlines(True):
+                # check for a full line
+                if line.endswith("\r\n"):
+                    #  check for end of multi line response
+                    if line == ".\r\n":
+                        eot = True
+                    else:
+                        # append data
+                        yencData += line
+
+                    # remove line
+                    line, self.data = self.data.split("\r\n", 1)
+
+            # if we have not finished...
+            if not eot:
+                # receive more data from server
+                self.data += self.s.recv(1024)
+
+        # all went well, return true
+        return yencData
+
     def listactive(self, processor=None):
         """List Active
 
@@ -144,7 +306,7 @@ class MyNntp:
         # send the command to the server
         self.send("LIST ACTIVE")
 
-        # check for 215 for multi line response
+        # check for 215 for list response
         if self.code != '215':
             return False
 

@@ -6,8 +6,10 @@ be fully implemented within a single python file.
 
 import argparse
 import sys
+import zlib
 
 import nntp.nntp
+import yEnc.Decoder
 
 # Begin configuration area
 
@@ -51,7 +53,7 @@ if __name__ == '__main__':
     if getattr(args, 'pass'):
         password = getattr(args, 'pass')
     
-    # get ourself a nntp object
+    # get a nntp object
     conn = nntp.nntp.MyNntp(server, port, use_ssl)
     
     # connect to server
@@ -70,12 +72,42 @@ if __name__ == '__main__':
         sys.exit()
 
     # list newsgroups
-    results = conn.listactive()
-    if results is False:
-        print("Listing newsgroups failure: Bad response!")
-        print("Exiting...")
+    #results = conn.listactive()
+    #if results is False:
+    #    print("Listing newsgroups failure: Bad response!")
+    #    print("Exiting...")
+    #
+    #for r in results:
+    #    print r[0], " ", r[1], " ", r[2], " ", r[3]
+    #
+    #print ("Listing complete... %d results..." % len(results))
+    
+    # group command
+    if conn.group("alt.test"):
+        print("Group command successful...")
+    else:
+        print("Group command failed...")
 
-    for r in results:
-        print r[0], " ", r[1], " ", r[2], " ", r[3]
+    # xover command
+    if conn.over():
+        print("XOver command successful...")
+    else:
+        print("XOver command failed...")
 
-    print ("Listing complete... %d results..." % len(results))
+    # xzver command
+    data = conn.zver()
+    if data:
+        print("Xzver command successful...")
+        d = yEnc.Decoder.Decoder(data)
+        data = zlib.decompress(d.data, -15)
+        fields = data.split("\t")
+        for field in fields:
+            print("%s" % field)
+    else:
+        print("Xzver command failed...")
+
+    # capabilities
+    if conn.quit():
+        print("Quit command successfull...")
+    else:
+        print("Quit command failed...")
