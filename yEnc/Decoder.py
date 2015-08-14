@@ -132,8 +132,8 @@ class Decoder:
 
         # compare the size to decoded data
         length = len(self.data)
-        if self.size != length:
-            raise yEncException('Size does not match header/footer value')
+        # if self.size != length:
+        #     raise yEncException('Size does not match header/footer value')
 
         # crc the data for compare
         calc_crc = zlib.crc32(self.data) & 0xffffffff

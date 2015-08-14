@@ -19,6 +19,10 @@ Updates:
 `pip install --upgrade pip`
 `pip install --upgrade setuptools`
 `pip install pyopenssl`
+`pip install SqlAlchemy`
+`pip install MySQL-python`
+`pip install python-dateutil`
+`pip install alembic`
 
 License
 -------

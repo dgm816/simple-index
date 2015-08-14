@@ -257,12 +257,12 @@ class MyNntp:
         # all went well, return true
         return True
 
-    def zver(self, parameters=None):
+    def zver(self, low, high):
         """Compressed overview
 
         Get compressed headers for the selected newsgroup.
         """
-        self.send("XZVER")
+        self.send("XZVER {0}-{1}".format(low, high))
 
         # check for 224 for over response
         if self.code != '224':
