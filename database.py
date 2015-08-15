@@ -19,7 +19,7 @@ class Groups(Base):
 class Articles(Base):
     __tablename__ = 'articles'
 
-    id = Column(Integer, length=5, primary_key=True)
+    id = Column(Integer, primary_key=True)
     h_subject = Column(String(1024))
     h_from = Column(String(1024))
     h_date = Column(DateTime)
